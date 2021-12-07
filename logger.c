@@ -27,34 +27,77 @@ typedef long long longlong;
 
 // static pthread_mutex_t LOCK_hostname;
 
-static CURL* pch = 0;
 
-my_bool Log_init(UDF_INIT *initid,
-                               UDF_ARGS *args,
-                               char *message) {
+struct memory {
+  char* string;
+  size_t size;
+};
+
+static CURL* pch = 0;
+static struct memory chunk = {0};
+
+static size_t
+writeFunc(void *contents, size_t size, size_t nmemb, void *userp)
+{
+  size_t realsize = size * nmemb;
+  struct memory *mem = (struct memory *)userp;
+ 
+  char *ptr = realloc(mem->string, mem->size + realsize + 1);
+  if (!ptr) {
+    // Out of memory
+    printf("not enough memory (realloc returned NULL)\n");
+    return 0;
+  }
+ 
+  mem->string = ptr;
+  memcpy(&(mem->string[mem->size]), contents, realsize);
+  mem->size += realsize;
+  mem->string[mem->size] = 0;
+ 
+  return realsize;
+}
+
+my_bool udfLog_init(UDF_INIT *initid,
+                    UDF_ARGS *args,
+                    char *message) {
+    chunk.string = malloc(1);
+    chunk.size = 0;
 
     pch = curl_easy_init();
     curl_easy_setopt(pch, CURLOPT_URL, SERVER_ADDRESS);
+    curl_easy_setopt(pch, CURLOPT_WRITEDATA, (void*)&chunk);
+    curl_easy_setopt(pch, CURLOPT_WRITEFUNCTION, writeFunc);
 
     return 0;
 }
 
-void Log_deinit(UDF_INIT *initid) {
+void udfLog_deinit(UDF_INIT *initid) {
   if (pch) {
     curl_easy_cleanup(pch);
     pch = 0;
   }
+  if (chunk.string) {
+    free(chunk.string);
+    chunk.string = 0;
+  }
 }
 
-longlong Log(UDF_INIT *initid,
-                           UDF_ARGS *args,
-                           char *is_null,
-                           char *error) {
+char *udfLog(UDF_INIT *initid, UDF_ARGS *args,
+          char *result, unsigned long *length,
+          char *is_null, char *error) {
     // Add severity level
-    // Allocate dynamic buffer
-    char buffer[1024];
-    sprintf(buffer, "%s", args->args[0]);
+    // Use dynamic buffer
+    const char* str = args->args[0];
+
+    // Response: msg=<MSG>\0
+    char* buffer = malloc(4 + strlen(str) + 1);
+    sprintf(buffer, "msg=");
+    strcpy(buffer + 4, str);
+
     curl_easy_setopt(pch, CURLOPT_POSTFIELDS, buffer);
     curl_easy_perform(pch);
-    return 0;
+    strncpy(result, chunk.string, chunk.size);
+    *length = chunk.size;
+
+    return result;
 } 
