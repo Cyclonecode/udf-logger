@@ -28,6 +28,11 @@ Now we need to tell mysql about our extension:
     DROP FUNCTION IF EXISTS udfLog;
     CREATE FUNCTION udfLog RETURNS STRING SONAME 'logger.so';
 
-After this you could start a server running on the same host as your mysql instance and on port 3000 and then say greet it:
+After this you could start a server running on the same host as your mysql instance and on port 3000.
+You could of course use anything for this, even just using the built in php webserver:
+
+    php -S localhost:3000
+
+and then say greet it:
 
     SELECT udfLog("Greetings dark night!");
