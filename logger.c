@@ -94,12 +94,7 @@ char *udfLog(UDF_INIT *initid, UDF_ARGS *args,
     chunk->size = 0;
     chunk->string = NULL;
 
-    // Add severity level
-    // const char* str = args->args[0];
-
-    // char* buffer = malloc(4 + strlen(str) + 1);
-    // sprintf(buffer, "msg=");
-    // strcpy(buffer + 4, str);
+    // TODO: Add severity level
 
     curl_easy_setopt(pch, CURLOPT_POSTFIELDS, (char*)args->args[0]);
     CURLcode ret = curl_easy_perform(pch);
