@@ -24,67 +24,76 @@ typedef long long longlong;
 #include <curl/easy.h>
 
 #define SERVER_ADDRESS "http://127.0.0.1:3000"
-
-// static pthread_mutex_t LOCK_hostname;
-
+#define MAX_RESPONSE_SIZE 1024*4
 
 struct memory {
   char* string;
   size_t size;
 };
 
-static CURL* pch = 0;
-static struct memory chunk = {0};
+static void* _realloc(void* ptr, size_t size) {
+  if (ptr) {
+    return realloc(ptr, size);
+  } else {
+    return malloc(size);
+  }
+}
 
 static size_t
-writeFunc(void *contents, size_t size, size_t nmemb, void *userp)
+writeFunc(void *ptr, size_t size, size_t nmemb, void *userp)
 {
   size_t realsize = size * nmemb;
-  struct memory *mem = (struct memory *)userp;
- 
-  char *ptr = realloc(mem->string, mem->size + realsize + 1);
-  if (!ptr) {
-    // Out of memory
-    printf("not enough memory (realloc returned NULL)\n");
-    return 0;
+  struct memory *res = (struct memory*)userp;
+
+  res->string = (char *)_realloc(res->string, res->size + realsize + 1);
+  if (res->string) {
+    memcpy(&(res->string[res->size]), ptr, realsize);
+    res->size += realsize;
+    res->string[res->size] = 0;
   }
- 
-  mem->string = ptr;
-  memcpy(&(mem->string[mem->size]), contents, realsize);
-  mem->size += realsize;
-  mem->string[mem->size] = 0;
- 
   return realsize;
 }
 
 my_bool udfLog_init(UDF_INIT *initid,
                     UDF_ARGS *args,
                     char *message) {
-    chunk.string = malloc(1);
-    chunk.size = 0;
+    struct memory* chunk;
+    if (args->arg_count != 1) {
+      strncpy(message, "One argument must be supplied", MYSQL_ERRMSG_SIZE);
+      return 1;
+    }
+    args->arg_type[0] = STRING_RESULT;
+    initid->max_length = MAX_RESPONSE_SIZE;
 
-    pch = curl_easy_init();
-    curl_easy_setopt(pch, CURLOPT_URL, SERVER_ADDRESS);
-    curl_easy_setopt(pch, CURLOPT_WRITEDATA, (void*)&chunk);
-    curl_easy_setopt(pch, CURLOPT_WRITEFUNCTION, writeFunc);
+    chunk = (struct memory*)malloc(sizeof(struct memory));
+    initid->ptr = (char*)chunk;
 
     return 0;
 }
 
 void udfLog_deinit(UDF_INIT *initid) {
-  if (pch) {
-    curl_easy_cleanup(pch);
-    pch = 0;
-  }
-  if (chunk.string) {
-    free(chunk.string);
-    chunk.string = 0;
-  }
+   struct memory* chunk = (struct memory*)initid->ptr;
+   if (chunk) {
+     if (chunk->string) {
+       free(chunk->string);
+     }
+     free(chunk);
+   }
 }
 
 char *udfLog(UDF_INIT *initid, UDF_ARGS *args,
           char *result, unsigned long *length,
           char *is_null, char *error) {
+    CURL* pch = curl_easy_init();
+    struct memory* chunk = (struct memory*)initid->ptr;
+    curl_easy_setopt(pch, CURLOPT_URL, SERVER_ADDRESS);
+    curl_easy_setopt(pch, CURLOPT_WRITEDATA, (void*)chunk);
+    curl_easy_setopt(pch, CURLOPT_WRITEFUNCTION, writeFunc);
+
+
+    chunk->size = 0;
+    chunk->string = NULL;
+
     // Add severity level
     // Use dynamic buffer
     const char* str = args->args[0];
@@ -95,9 +104,17 @@ char *udfLog(UDF_INIT *initid, UDF_ARGS *args,
     strcpy(buffer + 4, str);
 
     curl_easy_setopt(pch, CURLOPT_POSTFIELDS, buffer);
-    curl_easy_perform(pch);
-    strncpy(result, chunk.string, chunk.size);
-    *length = chunk.size;
+    CURLcode ret = curl_easy_perform(pch);
 
-    return result;
+    if (ret) {
+      fprintf(stderr, "error\n");
+      if (chunk->string) {
+        strcpy(chunk->string, ""); 
+      }
+      chunk->size = 0;
+    }
+    curl_easy_cleanup(pch);
+    *length = chunk->size;
+
+    return (char*)chunk->string;
 } 
