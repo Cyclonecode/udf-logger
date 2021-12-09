@@ -95,15 +95,13 @@ char *udfLog(UDF_INIT *initid, UDF_ARGS *args,
     chunk->string = NULL;
 
     // Add severity level
-    // Use dynamic buffer
-    const char* str = args->args[0];
+    // const char* str = args->args[0];
 
-    // Response: msg=<MSG>\0
-    char* buffer = malloc(4 + strlen(str) + 1);
-    sprintf(buffer, "msg=");
-    strcpy(buffer + 4, str);
+    // char* buffer = malloc(4 + strlen(str) + 1);
+    // sprintf(buffer, "msg=");
+    // strcpy(buffer + 4, str);
 
-    curl_easy_setopt(pch, CURLOPT_POSTFIELDS, buffer);
+    curl_easy_setopt(pch, CURLOPT_POSTFIELDS, (char*)args->args[0]);
     CURLcode ret = curl_easy_perform(pch);
 
     if (ret) {
