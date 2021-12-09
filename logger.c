@@ -23,7 +23,9 @@ typedef long long longlong;
 #include <curl/curl.h>
 #include <curl/easy.h>
 
+#ifndef SERVER_ADDRESS
 #define SERVER_ADDRESS "http://127.0.0.1:3000"
+#endif
 #define MAX_RESPONSE_SIZE 1024*4
 
 struct memory {

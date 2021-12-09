@@ -14,9 +14,7 @@ You need to the development package for curl and mysql installed.
 
 When the needed headers and libraries are installed, make sure you update the `makefile` with the correct paths before building your shared library:
 
-    export INCLUDE=-I/usr/include/mysql -I/usr/usr/include/x86_64-linux-gnu/curl
-    export LDFLAGS=-L/usr/lib/x86_64-linux-gnu
-    make
+    make SERVER=http://localhost:8080 INCLUDE="-I/usr/include/mysql -I/include/x86_64-linux-gnu/curl" LDFLAGS="-L/usr/lib/x86_64-linux-gnu"
 
 After we have built the shared library we need to copy it into our mysql plugin directory:
 
@@ -28,10 +26,10 @@ Now we need to tell mysql about our extension:
     DROP FUNCTION IF EXISTS udfLog;
     CREATE FUNCTION udfLog RETURNS STRING SONAME 'logger.so';
 
-After this you could start a server running on the same host as your mysql instance and on port 3000.
+After this you could start a server running on the same host as your mysql instance and on port 8080.
 You could of course use anything for this, even just using the built in php webserver:
 
-    php -S localhost:3000
+    php -S localhost:8080
 
 and then say greet it:
 
